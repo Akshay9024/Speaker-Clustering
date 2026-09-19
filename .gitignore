@@ -1,0 +1,70 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Conda envs
+.conda/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# VS Code / editors
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+/dataset
+design.md
+# Data / model artifacts
+*.pkl
+*.h5
+*.hdf5
+*.ckpt
+*.pt
+*.pth
+*.joblib
+*.npy
+*.npz
+*.csv
+*.tsv
+*.parquet
+
+# Local config / secrets
+.env
+.env.*
+*.secret
+secrets.json
+
+# Build / dist
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Coverage / testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# MyPy / lint caches
+.mypy_cache/
+.ruff_cache/
+
+# Misc
+*.bak
