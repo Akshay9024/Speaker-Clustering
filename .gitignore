@@ -66,5 +66,10 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Pipeline outputs and downloaded model checkpoints
+work/
+results/
+checkpoints/
+
 # Misc
 *.bak

@@ -1,0 +1,51 @@
+dataset:
+  name: ami
+  rttm_dir: dataset/ami/rttm/test
+  audio_dir: dataset/ami/audio/ihm
+  audio_template: "{rec}.Mix-Headset.wav"
+
+segmentation:
+  window_sec: 1.5
+  hop_sec: 0.75
+  min_interval_sec: 1.5
+  merge_gap_sec: 0.0
+  center_single_window: true
+
+embedding:
+  model: speechbrain/spkrec-ecapa-voxceleb
+  savedir: checkpoints/ecapa
+  sample_rate: 16000
+  batch_size: 128
+  device: cuda
+
+clustering:
+  laplacian: unnormalized
+  p_min: 1
+  p_max_ratio: 0.25
+  p_max_abs: null
+  p_stride: 1
+  k_max: 10
+  zero_diagonal: true
+  device: cuda
+  dtype: float32
+  row_normalize_spectral_embedding: false
+  kmeans_n_init: 10
+  seed: 0
+  single_speaker:
+    enabled: false
+    mean_cosine_threshold: 0.50
+
+assignment:
+  enabled: true
+  frame_sec: 0.01
+  fill_oracle_speech: true
+
+evaluation:
+  der: true
+  der_variants:
+    - name: collar250_nooverlap
+      collar: 0.25
+      skip_overlap: true
+    - name: strict
+      collar: 0.0
+      skip_overlap: false

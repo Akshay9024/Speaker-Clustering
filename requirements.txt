@@ -1,0 +1,76 @@
+# Locked environment for the GPU machine: Linux x86_64, Python 3.10, CUDA 12.4
+# (driver 550.144.03). Resolved and verified as a complete closure -- every version
+# below is the one pip's resolver actually selected for this platform.
+#
+#   pip install -r requirements.txt
+#
+# torch==2.6.0+cu124 itself pins the whole CUDA runtime stack with exact `==`
+# constraints (nvidia-cublas-cu12==12.4.5.8, nvidia-cudnn-cu12==9.1.0.70,
+# nvidia-nccl-cu12==2.21.5, triton==3.2.0, ...), so those are deterministic
+# without being restated here and the file stays installable off-GPU.
+#
+# Two pins are load-bearing and must not be relaxed:
+#   * ruamel.yaml==0.18.17 -- 0.19.x breaks hyperpyyaml's loader
+#     (AttributeError: 'Loader' object has no attribute 'max_depth'), which makes
+#     the ECAPA checkpoint impossible to load.
+#   * speechbrain==1.1.1   -- 1.0.3 calls torchaudio.list_audio_backends(), removed
+#     in torchaudio 2.9+; 1.1.1 version-guards it instead.
+
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch==2.6.0+cu124
+torchaudio==2.6.0+cu124
+
+speechbrain==1.1.1
+hyperpyyaml==1.2.3
+ruamel.yaml==0.18.17
+ruamel.yaml.clib==0.2.15
+sentencepiece==0.2.2
+
+huggingface_hub==1.28.0
+hf-xet==1.6.0
+
+numpy==2.2.6
+scipy==1.15.3
+scikit-learn==1.7.2
+pandas==2.3.3
+soundfile==0.13.1
+
+pyannote.metrics==4.1
+pyannote.core==6.0.1
+pyannote.database==6.1.1
+
+PyYAML==6.0.3
+tqdm==4.70.0
+
+# transitive, pinned for reproducibility
+anyio==4.15.1
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.5.0
+cloudpickle==3.1.2
+exceptiongroup==1.3.1
+filelock==4.0.1
+fsspec==2026.9.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+jinja2==3.1.6
+joblib==1.6.0
+markupsafe==3.0.3
+mpmath==1.3.0
+networkx==3.4.2
+packaging==26.3
+pycparser==3.0
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+requests==2.34.2
+six==1.17.0
+sortedcontainers==2.4.0
+sympy==1.13.1
+threadpoolctl==3.7.0
+typing_extensions==4.16.0
+tzdata==2026.4
+urllib3==2.8.0
