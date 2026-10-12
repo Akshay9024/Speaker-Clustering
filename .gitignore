@@ -19,6 +19,7 @@ ENV/
 .vscode/
 *.swp
 *.swo
+graphify-out/
 
 # OS files
 .DS_Store
@@ -30,6 +31,8 @@ Thumbs.db
 *.temp
 /dataset
 design.md
+mermaid-diagram.png
+CLAUDE.md
 # Data / model artifacts
 *.pkl
 *.h5
