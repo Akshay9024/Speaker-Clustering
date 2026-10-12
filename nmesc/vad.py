@@ -30,10 +30,29 @@ class SegmentationVad:
     def pipeline(self):
         if self._pipeline is None:
             import torch
+            from huggingface_hub import hf_hub_download
             from pyannote.audio import Model
             from pyannote.audio.pipelines import VoiceActivityDetection
 
-            model = Model.from_pretrained(self.model, use_auth_token=self.token)
+            # huggingface_hub>=1.0 dropped use_auth_token, which pyannote.audio 3.3.2 still
+            # passes; fetch the checkpoint ourselves and load the local file to skip that path.
+            token = None if self.token is True else self.token
+            checkpoint = hf_hub_download(self.model, "pytorch_model.bin", token=token)
+
+            # torch 2.6 defaults torch.load to weights_only=True, which rejects the
+            # TorchVersion global in pyannote 3.3.2's (trusted, gated) checkpoint. Force
+            # a full load just for this call.
+            original_load = torch.load
+
+            def _trusting_load(*args, **kwargs):
+                kwargs["weights_only"] = False
+                return original_load(*args, **kwargs)
+
+            torch.load = _trusting_load
+            try:
+                model = Model.from_pretrained(checkpoint)
+            finally:
+                torch.load = original_load
             pipeline = VoiceActivityDetection(segmentation=model)
             pipeline.instantiate(
                 {"min_duration_on": self.min_duration_on, "min_duration_off": self.min_duration_off}
