@@ -43,6 +43,7 @@ assignment:
 
 evaluation:
   der: true
+  rel_error_tol: 0.15
   der_variants:
     - name: collar250_nooverlap
       collar: 0.25

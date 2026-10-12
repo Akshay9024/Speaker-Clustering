@@ -102,6 +102,12 @@ def cmd_report(args) -> None:
     print(f"\nwrote {report.write(cfg, frame)}", flush=True)
 
 
+def cmd_meet(args) -> None:
+    from nmesc import meet
+
+    meet.run(args.meet_config, token=args.token)
+
+
 def cmd_inspect(args) -> None:
     cfg = load_config(args.config, dict(args.set or []))
     rec = args.recording
@@ -191,6 +197,11 @@ def main() -> None:
     rep = sub.add_parser("report", help="rebuild summary.md from predictions.csv")
     common(rep)
     rep.set_defaults(func=cmd_report)
+
+    meet = sub.add_parser("meet", help="render results_meet plots and relative-error accuracy")
+    meet.add_argument("--meet-config", default="results_meet/config.yaml")
+    meet.add_argument("--token", default=None, help="HF token for pyannote/segmentation-3.0")
+    meet.set_defaults(func=cmd_meet)
 
     args = parser.parse_args()
     args.func(args)

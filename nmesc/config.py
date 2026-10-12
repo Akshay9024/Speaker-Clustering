@@ -77,6 +77,7 @@ class DerVariant:
 @dataclass
 class EvaluationConfig:
     der: bool = True
+    rel_error_tol: float = 0.15
     der_variants: list[DerVariant] = field(
         default_factory=lambda: [
             DerVariant("collar250_nooverlap", 0.25, True),

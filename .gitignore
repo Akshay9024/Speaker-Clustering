@@ -27,6 +27,7 @@ Thumbs.db
 
 # Logs and temp files
 *.log
+results_meet
 *.tmp
 *.temp
 /dataset

@@ -48,6 +48,25 @@ def count_metrics(k_true: np.ndarray, k_pred: np.ndarray) -> dict:
     }
 
 
+def relative_count_metrics(k_true: np.ndarray, k_pred: np.ndarray, tol: float) -> dict:
+    """Speaker-count accuracy scored on error normalised by the true count.
+
+    rel_err = |K̂ − K| / K; a recording counts as correct when rel_err <= tol.
+    """
+    k_true = np.asarray(k_true, dtype=np.float64)
+    k_pred = np.asarray(k_pred, dtype=np.float64)
+    if len(k_true) == 0:
+        return {"n": 0, "tol": float(tol)}
+    rel_err = np.abs(k_pred - k_true) / k_true
+    return {
+        "n": int(len(k_true)),
+        "tol": float(tol),
+        "rel_accuracy": float((rel_err <= tol).mean()),
+        "rel_mae": float(rel_err.mean()),
+        "rel_median": float(np.median(rel_err)),
+    }
+
+
 def confusion(k_true: np.ndarray, k_pred: np.ndarray) -> tuple[list[int], list[int], np.ndarray]:
     pairs = Counter(zip(map(int, k_true), map(int, k_pred)))
     rows = sorted({t for t, _ in pairs})

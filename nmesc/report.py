@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from .config import Config
-from .metrics import confusion, count_metrics, weighted_der
+from .metrics import confusion, count_metrics, relative_count_metrics, weighted_der
 
 
 def _table(header: list[str], rows: list[list[str]]) -> str:
@@ -16,6 +16,8 @@ def _table(header: list[str], rows: list[list[str]]) -> str:
 
 def build(cfg: Config, frame) -> str:
     counts = count_metrics(frame["k_true"].to_numpy(), frame["k_pred"].to_numpy())
+    tol = cfg.evaluation.rel_error_tol
+    rel = relative_count_metrics(frame["k_true"].to_numpy(), frame["k_pred"].to_numpy(), tol)
     clustering = cfg.clustering
 
     parts = [
@@ -57,6 +59,19 @@ def build(cfg: Config, frame) -> str:
                 ["±1 accuracy", f"{counts['within_1']:.4f}"],
                 ["MAE", f"{counts['mae']:.4f}"],
                 ["Mean signed error (K̂ − K)", f"{counts['bias']:+.4f}"],
+            ],
+        ),
+        "",
+        "## Relative speaker-count accuracy",
+        "",
+        f"Error normalised by the true count: rel_err = |K̂ − K| / K; correct when rel_err ≤ τ = {tol}.",
+        "",
+        _table(
+            ["Metric", "Value"],
+            [
+                [f"Relative accuracy (τ={tol})", f"{rel['rel_accuracy']:.4f}"],
+                ["Mean relative error", f"{rel['rel_mae']:.4f}"],
+                ["Median relative error", f"{rel['rel_median']:.4f}"],
             ],
         ),
     ]
