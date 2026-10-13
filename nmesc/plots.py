@@ -52,11 +52,11 @@ def eigen_figure(
 def psweep_figure(p_values: np.ndarray, r_values: np.ndarray, p_star: int, out: Path) -> None:
     """The NME ratio r(p) over the p sweep; p* = argmin r(p)."""
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(p_values, r_values, "-", color="#1f77b4")
+    ax.semilogy(p_values, r_values, "-", color="#1f77b4")
     ax.axvline(p_star, color="#d62728", ls="--", label=f"p* = {p_star}")
     ax.set_xlabel("p (nearest neighbours per row)")
-    ax.set_ylabel("r(p) = p / max-eigengap ratio")
-    ax.set_title("NME ratio sweep — lower is a better graph density")
+    ax.set_ylabel("r(p) = p / max-eigengap ratio (log scale)")
+    ax.set_title("NME ratio sweep — p* minimises r(p)")
     ax.legend()
     fig.tight_layout()
     fig.savefig(out, dpi=150)

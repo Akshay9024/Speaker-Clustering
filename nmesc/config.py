@@ -61,6 +61,15 @@ class ClusteringConfig:
 
 
 @dataclass
+class VadConfig:
+    source: str = "oracle"  # oracle | pyannote
+    model: str = "pyannote/segmentation-3.0"
+    min_duration_on: float = 0.0
+    min_duration_off: float = 0.0
+    device: str = "cpu"
+
+
+@dataclass
 class AssignmentConfig:
     enabled: bool = True
     frame_sec: float = 0.01
@@ -98,6 +107,7 @@ class Config:
     segmentation: SegmentationConfig = field(default_factory=SegmentationConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
+    vad: VadConfig = field(default_factory=VadConfig)
     assignment: AssignmentConfig = field(default_factory=AssignmentConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     paths: PathsConfig = field(default_factory=PathsConfig)
@@ -130,6 +140,7 @@ def load_config(path: str | Path, overrides: dict[str, Any] | None = None) -> Co
         segmentation=SegmentationConfig(**raw.get("segmentation", {})),
         embedding=EmbeddingConfig(**raw.get("embedding", {})),
         clustering=_clustering(raw.get("clustering", {})),
+        vad=VadConfig(**raw.get("vad", {})),
         assignment=AssignmentConfig(**raw.get("assignment", {})),
         evaluation=_evaluation(raw.get("evaluation", {})),
         paths=PathsConfig(**raw.get("paths", {})),
@@ -167,6 +178,8 @@ def _validate(cfg: Config) -> None:
         raise ValueError("clustering.k_max must be >= 1")
     if cfg.clustering.p_min < 1:
         raise ValueError("clustering.p_min must be >= 1")
+    if cfg.vad.source not in ("oracle", "pyannote"):
+        raise ValueError(f"vad.source must be oracle|pyannote, got {cfg.vad.source!r}")
 
 
 def as_dict(cfg: Config) -> dict:

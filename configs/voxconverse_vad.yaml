@@ -1,0 +1,58 @@
+# VoxConverse with pyannote/segmentation-3.0 VAD instead of oracle RTTM VAD.
+# Mirrors voxconverse.yaml; k_true still read from the reference RTTM for scoring.
+# Outputs go to work_vad/ and results_vad/ so the oracle run is left untouched.
+
+dataset:
+  name: voxconverse
+  rttm_dir: dataset/voxconverse/rttm/test
+  audio_dir: dataset/voxconverse/audio/test
+  audio_template: "{rec}.wav"
+
+paths:
+  work_dir: work_vad
+  results_dir: results_vad
+
+segmentation:
+  window_sec: 1.5
+  hop_sec: 0.75
+  min_interval_sec: 1.5
+  merge_gap_sec: 0.0
+  center_single_window: true
+
+vad:
+  source: pyannote
+  model: pyannote/segmentation-3.0
+  min_duration_on: 0.0
+  min_duration_off: 0.0
+  device: cpu
+
+embedding:
+  model: speechbrain/spkrec-ecapa-voxceleb
+  savedir: checkpoints/ecapa
+  sample_rate: 16000
+  batch_size: 128
+  device: cpu
+
+clustering:
+  laplacian: unnormalized
+  p_min: 1
+  p_max_ratio: 0.25
+  p_max_abs: null
+  p_stride: 1
+  k_max: 21
+  zero_diagonal: true
+  device: cpu
+  dtype: float32
+  row_normalize_spectral_embedding: false
+  kmeans_n_init: 10
+  seed: 0
+  single_speaker:
+    enabled: false
+    mean_cosine_threshold: 0.50
+
+assignment:
+  enabled: false
+
+evaluation:
+  der: false
+  rel_error_tol: 0.15

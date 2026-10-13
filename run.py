@@ -52,9 +52,20 @@ def cmd_run(args) -> None:
     print(f"dataset={cfg.dataset.name} recordings={len(recs)} stages={stages}", flush=True)
 
     if "segment" in stages:
+        vad = None
+        if cfg.vad.source == "pyannote":
+            from nmesc.vad import SegmentationVad
+
+            vad = SegmentationVad(
+                model=cfg.vad.model,
+                device=cfg.vad.device,
+                min_duration_on=cfg.vad.min_duration_on,
+                min_duration_off=cfg.vad.min_duration_off,
+            )
+            print(f"  VAD: {cfg.vad.model} on {cfg.vad.device}", flush=True)
         total = 0
         for rec in tqdm(recs, desc="segment"):
-            total += len(pipeline.stage_segment(cfg, rec, force=args.force)["segments"])
+            total += len(pipeline.stage_segment(cfg, rec, force=args.force, vad=vad)["segments"])
         print(f"  segments: {total:,}", flush=True)
 
     if "embed" in stages:

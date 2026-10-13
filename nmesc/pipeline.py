@@ -39,7 +39,7 @@ def _artifact(cfg: Config, stage: str, rec: str, suffix: str) -> Path:
 # ---------------------------------------------------------------- stage: segment
 
 
-def stage_segment(cfg: Config, rec: str, force: bool = False) -> dict:
+def stage_segment(cfg: Config, rec: str, force: bool = False, vad=None) -> dict:
     out = _artifact(cfg, "segments", rec, ".json")
     if out.exists() and not force:
         return json.loads(out.read_text())
@@ -50,7 +50,12 @@ def stage_segment(cfg: Config, rec: str, force: bool = False) -> dict:
     duration = audio.probe_duration(wav)
 
     turns = rttm.read_rttm(reference_rttm_path(cfg, rec))
-    intervals = oracle_vad.speech_intervals(turns, duration, cfg.segmentation.merge_gap_sec)
+    if cfg.vad.source == "pyannote":
+        if vad is None:
+            raise RuntimeError("vad.source=pyannote but no VAD instance passed to stage_segment")
+        intervals = vad.intervals(wav)
+    else:
+        intervals = oracle_vad.speech_intervals(turns, duration, cfg.segmentation.merge_gap_sec)
     segments = segment_intervals(intervals, cfg.segmentation)
 
     payload = {
@@ -62,6 +67,7 @@ def stage_segment(cfg: Config, rec: str, force: bool = False) -> dict:
         "intervals": [[s, e] for s, e in intervals],
         "segments": [[s.start, s.end, s.interval_index] for s in segments],
         "segmentation": asdict(cfg.segmentation),
+        "vad_source": cfg.vad.source,
     }
     out.write_text(json.dumps(payload))
     return payload
