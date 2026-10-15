@@ -30,7 +30,12 @@ def build(cfg: Config, frame) -> str:
             [
                 ["Embedding", cfg.embedding.model],
                 ["Window / hop", f"{cfg.segmentation.window_sec} s / {cfg.segmentation.hop_sec} s"],
-                ["VAD", "oracle (reference RTTM)"],
+                [
+                    "VAD",
+                    "oracle (reference RTTM)"
+                    if cfg.vad.source == "oracle"
+                    else f"pyannote ({cfg.vad.model})",
+                ],
                 ["Laplacian", clustering.laplacian],
                 [
                     "p sweep",

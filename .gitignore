@@ -8,6 +8,7 @@ __pycache__/
 venv/
 env/
 ENV/
+Architecture Diagrams/
 
 # Conda envs
 .conda/
@@ -28,6 +29,8 @@ Thumbs.db
 # Logs and temp files
 *.log
 results_meet
+results_vad
+work_vad
 *.tmp
 *.temp
 /dataset
