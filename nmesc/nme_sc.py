@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from scipy.sparse.csgraph import connected_components
 
 from .config import ClusteringConfig
 from .embedding import resolve_device
@@ -19,6 +20,7 @@ class NmeScResult:
     n_segments: int
     mean_cosine: float
     single_speaker_shortcut: bool
+    n_components: int  # connected components of the binarised affinity at p* (0 on trivial paths)
     p_values: np.ndarray
     r_values: np.ndarray
     g_values: np.ndarray
@@ -54,6 +56,7 @@ def _trivial(n: int, mean_cosine: float, shortcut: bool) -> NmeScResult:
         n_segments=n,
         mean_cosine=mean_cosine,
         single_speaker_shortcut=shortcut,
+        n_components=0,
         p_values=np.zeros(0, dtype=np.int64),
         r_values=empty,
         g_values=empty,
@@ -115,7 +118,10 @@ def estimate(embeddings: np.ndarray, cfg: ClusteringConfig, progress=None) -> Nm
     best_p = int(grid[int(np.argmin(r_values))])
     binary.zero_()
     binary.scatter_(1, order[:, :best_p], 1.0)
-    eigenvalues, eigenvectors = torch.linalg.eigh(_laplacian(0.5 * (binary + binary.T), cfg.laplacian))
+    symmetric = 0.5 * (binary + binary.T)
+    adjacency = (symmetric > 0.0).cpu().numpy()
+    n_components = int(connected_components(adjacency, directed=False, return_labels=False))
+    eigenvalues, eigenvectors = torch.linalg.eigh(_laplacian(symmetric, cfg.laplacian))
     gaps = eigenvalues[1:] - eigenvalues[:-1]
     k = int(torch.argmax(gaps[:gap_cap])) + 1
 
@@ -130,6 +136,7 @@ def estimate(embeddings: np.ndarray, cfg: ClusteringConfig, progress=None) -> Nm
         n_segments=n,
         mean_cosine=mean_cosine,
         single_speaker_shortcut=False,
+        n_components=n_components,
         p_values=grid,
         r_values=r_values,
         g_values=g_values,

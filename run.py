@@ -145,8 +145,14 @@ def cmd_inspect(args) -> None:
         return
 
     with np.load(npz_path) as data:
-        print(f"K̂               : {int(data['k_pred'])}   (true {payload['k_true']})")
+        k_pred = int(data["k_pred"])
+        print(f"K̂               : {k_pred}   (true {payload['k_true']})")
         print(f"p*              : {int(data['p_star'])}")
+        if "n_components" in data.files:
+            print(f"affinity comps  : {int(data['n_components'])}  (connected components of binarised affinity at p*)")
+        gap_cap = min(cfg.clustering.k_max, int(data["n_segments"]) - 1)
+        if k_pred > 1 and k_pred == gap_cap:
+            print(f"K_max saturation: YES (K̂ == min(k_max, N-1) == {gap_cap}) -- estimator hit the ceiling")
         print(f"mean off-diag cos: {float(data['mean_cosine']):.4f}")
         print(f"clustering time : {float(data['elapsed_sec']):.2f} s")
 

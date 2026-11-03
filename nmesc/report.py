@@ -149,6 +149,25 @@ def build(cfg: Config, frame) -> str:
         f"max {int(frame['n_segments'].max())}).",
         f"- p* range observed: {int(frame['p_star'].min())}–{int(frame['p_star'].max())}.",
         f"- Clustering wall time: {frame['cluster_sec'].sum() / 60:.1f} min total.",
+    ]
+    if "n_components" in frame.columns:
+        graphed = frame[frame["n_components"] > 0]
+        frag = graphed[graphed["n_components"] > 1]
+        parts.append(
+            f"- Binarised-affinity connected components at p*: "
+            f"min {int(graphed['n_components'].min())}, median {int(graphed['n_components'].median())}, "
+            f"max {int(graphed['n_components'].max())}; {len(frag)}/{len(graphed)} recordings fragmented (>1)."
+            if len(graphed)
+            else "- Binarised-affinity connected components at p*: no graphed recordings."
+        )
+    if "saturated" in frame.columns:
+        sat = frame[frame["saturated"]]["recording_id"].tolist()
+        parts.append(
+            f"- K_max saturation (K̂ == min(k_max, N−1)): {len(sat)}/{len(frame)} recordings"
+            + (f" [{', '.join(sat)}]" if sat else "")
+            + "."
+        )
+    parts += [
         "- Raw per-recording values are in `predictions.csv`; re-run `report` to rebuild this file.",
         "",
     ]

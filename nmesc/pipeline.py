@@ -119,6 +119,7 @@ def stage_cluster(cfg: Config, rec: str, force: bool = False, progress=None) -> 
         "n_segments": np.int64(result.n_segments),
         "mean_cosine": np.float64(result.mean_cosine),
         "single_speaker_shortcut": np.bool_(result.single_speaker_shortcut),
+        "n_components": np.int64(result.n_components),
         "elapsed_sec": np.float64(elapsed),
         "p_values": result.p_values,
         "r_values": result.r_values,
@@ -164,12 +165,17 @@ def stage_evaluate(cfg: Config, recs: list[str]) -> "object":
     for rec in recs:
         payload = stage_segment(cfg, rec)
         cluster = stage_cluster(cfg, rec)
+        k_pred = int(cluster["k_pred"])
+        n_segments = int(cluster["n_segments"])
+        gap_cap = min(cfg.clustering.k_max, n_segments - 1)
         row = {
             "recording_id": rec,
             "k_true": int(payload["k_true"]),
-            "k_pred": int(cluster["k_pred"]),
+            "k_pred": k_pred,
             "p_star": int(cluster["p_star"]),
-            "n_segments": int(cluster["n_segments"]),
+            "n_segments": n_segments,
+            "n_components": int(cluster["n_components"]) if "n_components" in cluster else -1,
+            "saturated": bool(k_pred > 1 and k_pred == gap_cap),
             "mean_cosine": float(cluster["mean_cosine"]),
             "single_speaker_shortcut": bool(cluster["single_speaker_shortcut"]),
             "duration_sec": float(payload["duration"]),

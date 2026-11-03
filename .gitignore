@@ -23,6 +23,7 @@ Architecture Diagrams/
 graphify-out/
 
 # OS files
+design2.md
 .DS_Store
 Thumbs.db
 
