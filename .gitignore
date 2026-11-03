@@ -30,6 +30,7 @@ Thumbs.db
 # Logs and temp files
 *.log
 results_meet
+results_e1
 results_vad
 work_vad
 *.tmp

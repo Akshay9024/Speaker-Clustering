@@ -20,7 +20,7 @@ embedding:
 
 clustering:
   laplacian: unnormalized
-  p_min: 1
+  p_min: 3  # E1/R3: pruning floor removes the p*=1 graph-shattering blowup on low-K files
   p_max_ratio: 0.25
   p_max_abs: null
   p_stride: 1
