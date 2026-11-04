@@ -9,6 +9,8 @@ venv/
 env/
 ENV/
 Architecture Diagrams/
+work_r6_hop25
+work_r6_hop50
 
 # Conda envs
 .conda/
