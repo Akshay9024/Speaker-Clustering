@@ -20,6 +20,7 @@ work_r6_hop50
 
 # VS Code / editors
 .vscode/
+*.tex
 *.swp
 *.swo
 graphify-out/
