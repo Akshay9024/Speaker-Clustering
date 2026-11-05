@@ -14,7 +14,7 @@ work_r6_hop50
 
 # Conda envs
 .conda/
-
+results_r6
 # Jupyter / notebooks
 .ipynb_checkpoints/
 
