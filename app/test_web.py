@@ -70,7 +70,7 @@ class WebTests(unittest.TestCase):
     def test_health_exposes_actual_limits(self) -> None:
         response = self.client.get("/healthz")
         self.assertTrue(response.json()["ok"])
-        self.assertEqual(response.json()["max_upload_bytes"], 100 * 1024 * 1024)
+        self.assertEqual(response.json()["max_upload_bytes"], 450 * 1024 * 1024)
         self.assertIn("no-store", response.headers["cache-control"])
 
     def test_upload_returns_result_and_removes_temporary_files(self) -> None:

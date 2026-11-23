@@ -41,7 +41,7 @@ _SIZE_ERROR = "The upload exceeds the server's file-size limit. Choose a smaller
 @dataclass(frozen=True)
 class WebSettings:
     config_path: Path = _ROOT / "configs/voxconverse.yaml"
-    max_upload_bytes: int = 100 * 1024 * 1024
+    max_upload_bytes: int = 450 * 1024 * 1024
     max_duration_sec: float = 3600.0
     decode_timeout_sec: float = 120.0
     max_pending_jobs: int = 8
@@ -65,7 +65,7 @@ class WebSettings:
         config = Path(os.environ.get("SPK_CONFIG", "configs/voxconverse.yaml"))
         return cls(
             config_path=config if config.is_absolute() else _ROOT / config,
-            max_upload_bytes=int(os.environ.get("SPK_MAX_UPLOAD_MB", "100")) * 1024 * 1024,
+            max_upload_bytes=int(os.environ.get("SPK_MAX_UPLOAD_MB", "450")) * 1024 * 1024,
             max_duration_sec=float(os.environ.get("SPK_MAX_DURATION_SEC", "3600")),
             decode_timeout_sec=float(os.environ.get("SPK_DECODE_TIMEOUT_SEC", "120")),
             max_pending_jobs=int(os.environ.get("SPK_MAX_PENDING_JOBS", "8")),

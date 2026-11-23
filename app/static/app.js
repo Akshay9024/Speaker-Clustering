@@ -18,7 +18,7 @@
     ready: false, serviceStatus: "connecting", busy: false, jobId: null, pendingMic: false, recording: false,
     stopping: false, recorder: null, stream: null, discardRecording: false,
     audioContext: null, meterFrame: null, recordTimer: null, elapsedTimer: null,
-    captureVersion: 0, maxBytes: 100 * 1024 * 1024, maxDuration: 3600,
+    captureVersion: 0, maxBytes: 450 * 1024 * 1024, maxDuration: 3600,
   };
   const MAX_WAIT_MS = 30 * 60 * 1000;
   let activeRequest = null;
