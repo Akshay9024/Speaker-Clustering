@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 import uvicorn
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Route, expect, sync_playwright
 
 from app.main import create_app
 from app.infer import CountResult, SpeakerCounter
@@ -91,6 +91,31 @@ class BrowserChecks(unittest.TestCase):
             {"name": name, "mimeType": "audio/wav", "buffer": wav_bytes()}
         )
         expect(self.page.locator("#preview")).to_be_visible()
+
+    def hold_upload(self) -> None:
+        """Control upload events without transferring hundreds of megabytes in QA."""
+        self.page.add_init_script("""
+          window.uploadSubmissions = 0;
+          window.XMLHttpRequest = class extends EventTarget {
+            constructor() {
+              super();
+              this.upload = new EventTarget();
+              this.aborted = false;
+              window.heldUpload = this;
+            }
+            open() {}
+            send() { window.uploadSubmissions += 1; }
+            abort() {
+              this.aborted = true;
+              this.dispatchEvent(new Event('abort'));
+            }
+          };
+        """)
+
+    def pause_clock(self) -> None:
+        """Advance timeout tests explicitly instead of waiting several minutes."""
+        self.page.clock.install(time=0)
+        self.page.clock.pause_at(1000)
 
     def test_responsive_layouts_have_no_overflow_or_panel_overlaps(self) -> None:
         self.open()
@@ -189,16 +214,17 @@ class BrowserChecks(unittest.TestCase):
         expect(self.page.locator("#uploadTab")).to_be_enabled()
 
     def test_status_connection_failure_can_resume_without_another_upload(self) -> None:
+        self.pause_clock()
         self.open()
         self.upload()
-        uploads = []
+        uploads: list[str] = []
         self.page.on("request", lambda request: uploads.append(request.url)
                      if request.method == "POST" and request.url.endswith("/diarize") else None)
-        attempts = []
+        attempts: list[bool] = []
 
-        def status(route) -> None:
+        def status(route: Route) -> None:
             attempts.append(True)
-            if len(attempts) == 1:
+            if len(attempts) <= 4:
                 route.fulfill(status=503, json={"detail": "Connection interrupted"})
             else:
                 route.fulfill(json={"status": "done", "result": {
@@ -207,10 +233,154 @@ class BrowserChecks(unittest.TestCase):
 
         self.page.route("**/jobs/*", status)
         self.page.locator("#analyse").click()
+        for attempt, delay in ((1, 1000), (2, 2000), (3, 4000)):
+            expect(self.page.locator("#processingHint")).to_contain_text(f"({attempt} of 3)")
+            self.page.clock.run_for(delay)
         expect(self.page.locator("#checkResult")).to_be_visible()
-        self.page.locator("#checkResult").click()
+        expect(self.page.locator("#analyseText")).to_have_text("Check analysis status")
+        self.page.locator("#analyse").click()
         expect(self.page.locator("#speakerCount")).to_have_text("2")
         self.assertEqual(len(uploads), 1)
+        self.assertEqual(len(attempts), 5)
+
+    def test_temporary_status_failures_retry_automatically_without_another_upload(self) -> None:
+        self.pause_clock()
+        self.open()
+        self.upload()
+        uploads: list[str] = []
+        self.page.on("request", lambda request: uploads.append(request.url)
+                     if request.method == "POST" and request.url.endswith("/diarize") else None)
+        attempts: list[bool] = []
+
+        def status(route: Route) -> None:
+            attempts.append(True)
+            if len(attempts) == 1:
+                route.fulfill(status=502, content_type="text/html", body="<h1>Bad gateway</h1>")
+            elif len(attempts) == 2:
+                route.abort("failed")
+            elif len(attempts) == 3:
+                route.fulfill(status=503, json={"detail": "Temporarily unavailable"})
+            else:
+                route.fulfill(json={"status": "done", "result": {
+                    "num_speakers": 2, "speech_sec": 2, "duration_sec": 3,
+                }})
+
+        self.page.route("**/jobs/*", status)
+        self.page.locator("#analyse").click()
+        for attempt, delay in ((1, 1000), (2, 2000), (3, 4000)):
+            expect(self.page.locator("#processingHint")).to_contain_text(f"({attempt} of 3)")
+            self.page.clock.run_for(delay)
+        expect(self.page.locator("#speakerCount")).to_have_text("2")
+        expect(self.page.locator("#notice")).to_be_hidden()
+        expect(self.page.locator("#checkResult")).to_be_hidden()
+        self.assertEqual(len(uploads), 1)
+        self.assertEqual(len(attempts), 4)
+
+    def test_status_response_body_failures_retry_without_another_upload(self) -> None:
+        self.pause_clock()
+        self.page.add_init_script("""
+          const originalFetch = window.fetch;
+          window.statusRequests = 0;
+          window.fetch = (url, options) => {
+            if (String(url).startsWith('/jobs/') && ++window.statusRequests === 1) {
+              return Promise.resolve({
+                ok: true,
+                json: () => new Promise((resolve, reject) => {
+                  if (window.disconnectResponseBody) {
+                    reject(new TypeError('Connection lost reading response body'));
+                    return;
+                  }
+                  options.signal.addEventListener('abort', () => {
+                    reject(new DOMException('Response body timed out', 'AbortError'));
+                  }, { once: true });
+                }),
+              });
+            }
+            return originalFetch(url, options);
+          };
+        """)
+        uploads: list[str] = []
+        self.page.on("request", lambda request: uploads.append(request.url)
+                     if request.method == "POST" and request.url.endswith("/diarize") else None)
+        for disconnect in (False, True):
+            with self.subTest(disconnect=disconnect):
+                uploads.clear()
+                self.open()
+                self.upload()
+                self.page.evaluate("disconnect => { window.disconnectResponseBody = disconnect; }", disconnect)
+                self.page.locator("#analyse").click()
+                self.page.wait_for_function("window.statusRequests === 1")
+                if not disconnect:
+                    self.page.clock.run_for(20000)
+                expect(self.page.locator("#processingHint")).to_contain_text("(1 of 3)")
+                self.page.clock.run_for(1000)
+                expect(self.page.locator("#speakerCount")).to_have_text("2")
+                self.assertEqual(self.page.evaluate("window.statusRequests"), 2)
+                self.assertEqual(len(uploads), 1)
+
+    def test_upload_progress_allows_transfers_longer_than_two_minutes(self) -> None:
+        self.pause_clock()
+        self.hold_upload()
+        self.open()
+        self.upload()
+        self.page.route("**/jobs/slow-upload", lambda route: route.fulfill(json={
+            "status": "done", "result": {"num_speakers": 2, "speech_sec": 2, "duration_sec": 3},
+        }))
+        self.page.locator("#analyse").click()
+        for loaded in (25, 50, 75):
+            self.page.clock.run_for(60000)
+            self.page.evaluate("""loaded => heldUpload.upload.dispatchEvent(
+              new ProgressEvent('progress', { lengthComputable: true, loaded, total: 100 })
+            )""", loaded)
+            expect(self.page.locator("#processingText")).to_have_text(f"Uploading your audio · {loaded}%")
+            expect(self.page.locator("#notice")).to_be_hidden()
+            expect(self.page.locator("#analyse")).to_be_disabled()
+            self.assertFalse(self.page.evaluate("heldUpload.aborted"))
+        self.page.evaluate("heldUpload.upload.dispatchEvent(new Event('load'))")
+        expect(self.page.locator("#processingText")).to_have_text("Waiting for upload confirmation")
+        self.page.evaluate("""() => {
+          heldUpload.status = 202;
+          heldUpload.response = { job_id: 'slow-upload', status: 'queued' };
+          heldUpload.dispatchEvent(new Event('load'));
+        }""")
+        expect(self.page.locator("#speakerCount")).to_have_text("2")
+        expect(self.page.locator("#analyse")).to_be_enabled()
+        self.assertEqual(self.page.evaluate("window.uploadSubmissions"), 1)
+
+    def test_stalled_upload_stops_without_automatically_resubmitting(self) -> None:
+        self.pause_clock()
+        self.hold_upload()
+        self.open()
+        self.upload()
+        self.page.locator("#analyse").click()
+        self.page.clock.run_for(60000)
+        self.page.evaluate("""() => heldUpload.upload.dispatchEvent(
+          new ProgressEvent('progress', { lengthComputable: true, loaded: 25, total: 100 })
+        )""")
+        self.page.clock.run_for(60000)
+        self.page.evaluate("""() => heldUpload.upload.dispatchEvent(
+          new ProgressEvent('progress', { lengthComputable: true, loaded: 25, total: 100 })
+        )""")
+        self.page.clock.run_for(60001)
+        expect(self.page.locator("#noticeText")).to_contain_text("no progress for two minutes")
+        expect(self.page.locator("#analyse")).to_be_enabled()
+        expect(self.page.locator("#checkResult")).to_be_hidden()
+        self.assertTrue(self.page.evaluate("heldUpload.aborted"))
+        self.page.clock.run_for(8000)
+        self.assertEqual(self.page.evaluate("window.uploadSubmissions"), 1)
+
+    def test_sent_upload_times_out_waiting_for_server_confirmation(self) -> None:
+        self.pause_clock()
+        self.hold_upload()
+        self.open()
+        self.upload()
+        self.page.locator("#analyse").click()
+        self.page.evaluate("heldUpload.upload.dispatchEvent(new Event('load'))")
+        self.page.clock.run_for(120001)
+        expect(self.page.locator("#noticeText")).to_contain_text("server did not confirm receipt")
+        expect(self.page.locator("#analyse")).to_be_enabled()
+        self.assertTrue(self.page.evaluate("heldUpload.aborted"))
+        self.assertEqual(self.page.evaluate("window.uploadSubmissions"), 1)
 
     def test_missing_job_finishes_polling_with_a_clear_error(self) -> None:
         self.open()

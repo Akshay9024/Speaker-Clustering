@@ -21,6 +21,9 @@
     captureVersion: 0, maxBytes: 450 * 1024 * 1024, maxDuration: 3600,
   };
   const MAX_WAIT_MS = 30 * 60 * 1000;
+  const UPLOAD_IDLE_MS = 2 * 60 * 1000;
+  const STATUS_MAX_RETRIES = 3;
+  const STATUS_RETRY_DELAY_MS = 1000;
   let activeRequest = null;
 
   function clock(seconds) {
@@ -60,6 +63,8 @@
     ui.fileInput.disabled = locked;
     ui.removeFile.disabled = locked;
     ui.analyse.disabled = locked || !state.file || !state.ready || tooLong || tooLarge;
+    ui.analyseText.textContent = state.busy ? "Analysing audio…"
+      : state.jobId ? "Check analysis status" : "Estimate speakers";
     ui.recordButton.disabled = state.busy || state.pendingMic || state.stopping;
     ui.cancelRecording.hidden = !state.pendingMic && !state.recording;
     if (state.recording) {
@@ -177,38 +182,119 @@
     updateControls();
   }
 
+  function responseError(status, body) {
+    const error = new Error(typeof body?.detail === "string" ? body.detail
+      : "The request failed (" + status + "). Please try again.");
+    error.status = status;
+    error.data = body;
+    error.retryable = [408, 429, 500, 502, 503, 504].includes(status);
+    return error;
+  }
+
   async function requestJSON(url, options = {}, timeoutMs = 20000, analysisRequest = false) {
     const controller = new AbortController();
     if (analysisRequest) activeRequest = controller;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, { ...options, signal: controller.signal, cache: "no-store" });
-      let body;
+      let body = null;
       try {
         body = await response.json();
-      } catch {
-        throw new Error("The server returned an unreadable response. Please try again.");
+      } catch (error) {
+        if (error.name === "AbortError" || error instanceof TypeError) throw error;
+        if (response.ok) {
+          throw new Error("The server returned an unreadable response. Please try again.");
+        }
       }
-      if (!response.ok) {
-        const error = new Error(typeof body.detail === "string" ? body.detail
-          : "The request failed (" + response.status + "). Please try again.");
-        error.status = response.status;
-        error.data = body;
-        throw error;
-      }
+      if (!response.ok) throw responseError(response.status, body);
       return body;
     } catch (error) {
-      if (error.name === "AbortError") {
-        throw new Error("The server took too long to respond. Check your connection and try again.");
-      }
-      if (error instanceof TypeError) {
-        throw new Error("Cannot reach the analysis service. Check your connection and try again.");
+      if (error.name === "AbortError" || error instanceof TypeError) {
+        const failure = new Error(error.name === "AbortError"
+          ? "The server took too long to respond. Check your connection and try again."
+          : "Cannot reach the analysis service. Check your connection and try again.");
+        failure.retryable = true;
+        throw failure;
       }
       throw error;
     } finally {
       clearTimeout(timer);
       if (activeRequest === controller) activeRequest = null;
     }
+  }
+
+  function uploadAudio(file) {
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      let timer = null;
+      let settled = false;
+      let uploaded = false;
+      let lastLoaded = 0;
+
+      function finish(error, body = null) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (activeRequest === request) activeRequest = null;
+        if (error) reject(error); else resolve(body);
+      }
+
+      function watchProgress() {
+        // Allow long transfers while bounding periods with no upload progress.
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          finish(new Error(uploaded
+            ? "Your audio was sent, but the server did not confirm receipt. Check the server before uploading again."
+            : "The upload made no progress for two minutes. Check your connection and try again."));
+          request.abort();
+        }, UPLOAD_IDLE_MS);
+      }
+
+      request.upload.addEventListener("progress", (event) => {
+        if (settled || event.loaded <= lastLoaded) return;
+        lastLoaded = event.loaded;
+        watchProgress();
+        ui.processingText.textContent = "Uploading your audio"
+          + (event.lengthComputable ? " · " + Math.min(100, Math.floor(event.loaded / event.total * 100)) + "%" : "");
+        ui.processingHint.textContent = "Transferred " + sizeLabel(event.loaded)
+          + (event.lengthComputable ? " of " + sizeLabel(event.total) : "")
+          + ". Larger recordings may take several minutes to upload.";
+      });
+      request.upload.addEventListener("load", () => {
+        if (settled) return;
+        uploaded = true;
+        watchProgress();
+        ui.processingText.textContent = "Waiting for upload confirmation";
+        ui.processingHint.textContent = "Your audio has been sent. Waiting for the server to accept it.";
+      });
+      request.addEventListener("load", () => {
+        if (request.status < 200 || request.status >= 300) {
+          finish(responseError(request.status, request.response));
+        } else if (!request.response || typeof request.response !== "object") {
+          finish(new Error("The server returned an unreadable upload response. Check the server before uploading again."));
+        } else {
+          finish(null, request.response);
+        }
+      });
+      request.addEventListener("error", () => finish(new Error(
+        "The upload connection was interrupted. Check your connection and server before trying again."
+      )));
+      request.addEventListener("abort", () => finish(new Error("The upload was interrupted.")));
+      request.open("POST", "/diarize");
+      request.responseType = "json";
+      activeRequest = request;
+      const form = new FormData();
+      form.append("file", file, file.name);
+      ui.processingText.textContent = "Uploading your audio · 0%";
+      ui.processingHint.textContent = "Keep this page open. Larger recordings may take several minutes to upload.";
+      ui.actionHint.textContent = "Your audio is uploading. Keep this page open until it finishes.";
+      watchProgress();
+      try {
+        request.send(form);
+      } catch (error) {
+        finish(error);
+      }
+    });
   }
 
   async function checkConnection() {
@@ -249,7 +335,6 @@
 
   function setBusy(busy) {
     state.busy = busy;
-    ui.analyseText.textContent = busy ? "Analysing audio…" : "Estimate speakers";
     ui.analyseIcon.toggleAttribute("hidden", busy);
     ui.analyseSpinner.hidden = !busy;
     ui.inputPanel?.setAttribute("aria-busy", String(busy));
@@ -281,8 +366,21 @@
 
   async function pollJob(jobId) {
     const started = performance.now();
+    let failures = 0;
     while (performance.now() - started < MAX_WAIT_MS) {
-      const job = await requestJSON("/jobs/" + encodeURIComponent(jobId), {}, 20000, true);
+      let job;
+      try {
+        job = await requestJSON("/jobs/" + encodeURIComponent(jobId), {}, 20000, true);
+        failures = 0;
+      } catch (error) {
+        if (!error.retryable || failures >= STATUS_MAX_RETRIES) throw error;
+        failures += 1;
+        ui.processingText.textContent = "Reconnecting to your analysis";
+        ui.processingHint.textContent = "Retrying status check (" + failures + " of " + STATUS_MAX_RETRIES
+          + "). Your audio will not be uploaded again.";
+        await new Promise((resolve) => setTimeout(resolve, STATUS_RETRY_DELAY_MS * 2 ** (failures - 1)));
+        continue;
+      }
       if (job.status === "done") {
         const result = job.result;
         if (!result || !Number.isInteger(result.num_speakers) || result.num_speakers < 0
@@ -332,21 +430,20 @@
 
   async function analyse(resume = false) {
     if (state.busy || state.pendingMic || state.recording || state.stopping) return;
+    if (state.jobId) resume = true;
     if (!resume && (!state.file || !state.ready)) return;
     if (resume && !state.jobId) return;
     ui.audioPreview.pause();
     startProcessing();
     try {
       if (!resume) {
-        ui.processingText.textContent = "Uploading your audio";
-        const form = new FormData();
-        form.append("file", state.file, state.file.name);
-        const response = await requestJSON("/diarize", { method: "POST", body: form }, 120000, true);
+        const response = await uploadAudio(state.file);
         if (typeof response.job_id !== "string" || !response.job_id) {
           throw new Error("The server did not return an analysis ID. Please try again.");
         }
         state.jobId = response.job_id;
       }
+      ui.actionHint.textContent = "Your audio is being analysed. Longer recordings take more time.";
       showResult(await pollJob(state.jobId));
     } catch (error) {
       if (error.status === 404) state.jobId = null;
