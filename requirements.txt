@@ -56,6 +56,8 @@ imageio-ffmpeg==0.6.0
 # Browser sanity-check tooling; browser binaries are installed separately when needed.
 playwright==1.56.0
 pyee==13.0.0
+# Optional HTTPS tunnel for sharing the running GPU web app.
+pyngrok==9.1.4
 
 # Meeting deliverable: plots + external-audio VAD (pyannote/segmentation-3.0).
 # pyannote.audio 4.x needs torch>=2.8, which would break the torch==2.6.0 closure above;
