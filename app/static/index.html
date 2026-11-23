@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Speaker Counter</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: #0f1420; color: #e7ecf3; padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 460px; background: #192234; border: 1px solid #2a3750;
+    border-radius: 16px; padding: 28px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #9fb0c8; font-size: .9rem; }
+  .drop {
+    border: 1.5px dashed #3a4a68; border-radius: 12px; padding: 28px 16px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: #5b8cff; background: #1d2840; }
+  .drop input { display: none; }
+  .fname { margin-top: 12px; font-size: .85rem; color: #9fb0c8; word-break: break-all; }
+  button {
+    width: 100%; margin-top: 18px; padding: 12px; font-size: 1rem; font-weight: 600;
+    border: 0; border-radius: 10px; background: #3b74ff; color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .result { margin-top: 22px; text-align: center; min-height: 72px; }
+  .count { font-size: 3rem; font-weight: 700; line-height: 1; }
+  .label { color: #9fb0c8; font-size: .85rem; margin-top: 6px; }
+  .meta { color: #6f819c; font-size: .75rem; margin-top: 8px; }
+  .err { color: #ff8a8a; font-size: .9rem; }
+  .spin { display: inline-block; width: 26px; height: 26px; border: 3px solid #35456580;
+          border-top-color: #5b8cff; border-radius: 50%; animation: s .8s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>How many speakers?</h1>
+  <p class="sub">Upload an audio file &mdash; the system estimates the number of distinct speakers.</p>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" />
+    <div>Click to choose or drop an audio file</div>
+    <div class="fname" id="fname"></div>
+  </label>
+
+  <button id="go" disabled>Estimate speakers</button>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  const fileEl = document.getElementById("file");
+  const drop = document.getElementById("drop");
+  const fname = document.getElementById("fname");
+  const go = document.getElementById("go");
+  const result = document.getElementById("result");
+
+  function setFile(f) {
+    if (!f) return;
+    fileEl._file = f;
+    fname.textContent = f.name;
+    go.disabled = false;
+    result.innerHTML = "";
+  }
+  fileEl.addEventListener("change", () => setFile(fileEl.files[0]));
+  ["dragover", "dragenter"].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault(); drop.classList.add("over");
+  }));
+  ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => {
+    ev.preventDefault(); drop.classList.remove("over");
+  }));
+  drop.addEventListener("drop", ev => setFile(ev.dataTransfer.files[0]));
+
+  async function poll(jobId) {
+    while (true) {
+      await new Promise(r => setTimeout(r, 1500));
+      const res = await fetch(`/jobs/${jobId}`);
+      const job = await res.json();
+      if (job.status === "done") return job.result;
+      if (job.status === "error") throw new Error(job.error || "inference failed");
+    }
+  }
+
+  go.addEventListener("click", async () => {
+    const f = fileEl._file;
+    if (!f) return;
+    go.disabled = true;
+    result.innerHTML = '<div class="spin"></div><div class="label">analysing&hellip; (long files take a while)</div>';
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/diarize", { method: "POST", body: fd });
+      if (!res.ok) throw new Error((await res.json()).detail || "upload failed");
+      const { job_id } = await res.json();
+      const r = await poll(job_id);
+      const n = r.num_speakers;
+      result.innerHTML = n === 0
+        ? '<div class="count">0</div><div class="label">no speech detected</div>'
+        : `<div class="count">${n}</div>`
+          + `<div class="label">speaker${n === 1 ? "" : "s"} detected</div>`
+          + `<div class="meta">${r.num_segments} windows &middot; ${r.speech_sec.toFixed(1)}s speech &middot; ${r.device}</div>`;
+    } catch (e) {
+      result.innerHTML = `<div class="err">${e.message}</div>`;
+    } finally {
+      go.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
