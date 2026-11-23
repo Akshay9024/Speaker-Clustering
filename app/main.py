@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import os
@@ -10,7 +11,7 @@ import tempfile
 import threading
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import AsyncIterator, Literal
@@ -238,6 +239,13 @@ async def healthz(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "ok": counter is not None,
+            "status": request.app.state.model_status,
+            "detail": (
+                "The analysis service is ready." if counter is not None else
+                "The analysis service is starting. Please wait a moment."
+                if request.app.state.model_status == "loading" else
+                "Audio analysis is currently unavailable. Check the server setup and restart the service."
+            ),
             "device": counter.device if counter else None,
             "max_upload_bytes": settings.max_upload_bytes,
             "max_duration_sec": settings.max_duration_sec,
@@ -261,9 +269,24 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(application: Starlette) -> AsyncIterator[None]:
+        async def prepare_models() -> None:
+            try:
+                application.state.counter = await run_in_threadpool(_load_models, settings)
+                application.state.model_status = "ready"
+            except Exception:
+                _LOG.exception("Model startup failed. Check model access and requirements.txt.")
+                application.state.model_status = "error"
+
+        loading = None
         if application.state.counter is None:
-            application.state.counter = await run_in_threadpool(_load_models, settings)
-        yield
+            loading = asyncio.create_task(prepare_models())
+        try:
+            yield
+        finally:
+            if loading is not None:
+                loading.cancel()
+                with suppress(asyncio.CancelledError):
+                    await loading
 
     application = Starlette(
         lifespan=lifespan,
@@ -277,6 +300,7 @@ def create_app(
     )
     application.state.settings = settings
     application.state.counter = counter
+    application.state.model_status = "ready" if counter is not None else "loading"
     application.state.jobs = {}
     application.state.job_lock = threading.Lock()
     application.state.infer_lock = threading.Lock()

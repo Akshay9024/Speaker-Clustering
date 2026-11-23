@@ -15,7 +15,7 @@
   ].map((id) => [id, byId(id)]));
   const state = {
     file: null, source: "upload", mode: "upload", previewUrl: null, duration: null,
-    ready: false, busy: false, jobId: null, pendingMic: false, recording: false,
+    ready: false, serviceStatus: "connecting", busy: false, jobId: null, pendingMic: false, recording: false,
     stopping: false, recorder: null, stream: null, discardRecording: false,
     audioContext: null, meterFrame: null, recordTimer: null, elapsedTimer: null,
     captureVersion: 0, maxBytes: 100 * 1024 * 1024, maxDuration: 3600,
@@ -79,7 +79,11 @@
     } else if (state.recording || state.stopping) {
       ui.actionHint.textContent = "Stop recording to preview and analyse your audio.";
     } else if (!state.ready) {
-      ui.actionHint.textContent = "Connect to the analysis service to continue.";
+      ui.actionHint.textContent = state.serviceStatus === "loading"
+        ? "The analysis service is starting. You can prepare your audio while you wait."
+        : state.serviceStatus === "error"
+          ? "Analysis is unavailable. You can still record and preview your audio."
+          : "Connect to the analysis service to continue.";
     } else if (tooLong || tooLarge) {
       ui.actionHint.textContent = "Choose a shorter or smaller recording within the server limits.";
     } else if (state.file) {
@@ -189,6 +193,7 @@
         const error = new Error(typeof body.detail === "string" ? body.detail
           : "The request failed (" + response.status + "). Please try again.");
         error.status = response.status;
+        error.data = body;
         throw error;
       }
       return body;
@@ -212,6 +217,7 @@
       const health = await requestJSON("/healthz", {}, 10000);
       if (!health.ok) throw new Error("Service is not ready");
       state.ready = true;
+      state.serviceStatus = "ready";
       if (Number.isFinite(health.max_upload_bytes) && health.max_upload_bytes > 0) {
         state.maxBytes = health.max_upload_bytes;
       }
@@ -226,10 +232,13 @@
       if (!health.ffmpeg_available) {
         ui.fileLimit.textContent += " · WAV / FLAC recommended";
       }
-    } catch {
+    } catch (error) {
       state.ready = false;
-      ui.connection.dataset.state = "offline";
-      ui.connectionText.textContent = "Service offline";
+      state.serviceStatus = error.data?.status || "offline";
+      ui.connection.dataset.state = state.serviceStatus === "loading" ? "loading" : "offline";
+      ui.connectionText.textContent = state.serviceStatus === "loading" ? "Service starting"
+        : state.serviceStatus === "error" ? "Analysis unavailable" : "Service offline";
+      ui.reconnect.textContent = state.serviceStatus === "offline" ? "Retry connection" : "Check service";
       ui.reconnect.hidden = false;
       ui.fileLimit.textContent = "Server connection needed";
     } finally {

@@ -86,8 +86,8 @@ class SpeakerCounter:
 
     def warmup(self) -> None:
         """Load the lazy models before accepting requests."""
-        _ = self.vad.pipeline
         _ = self.embedder.model
+        _ = self.vad.pipeline
 
     def _check_duration(self, duration: float) -> None:
         if not math.isfinite(duration) or duration <= 0:

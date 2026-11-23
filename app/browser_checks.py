@@ -236,6 +236,18 @@ class BrowserChecks(unittest.TestCase):
         expect(self.page.locator("#noticeText")).to_contain_text("empty")
         expect(self.page.locator("#analyse")).to_be_disabled()
 
+    def test_model_setup_errors_leave_audio_preparation_available(self) -> None:
+        self.page.route("**/healthz", lambda route: route.fulfill(
+            status=503, json={"ok": False, "status": "error", "detail": "Analysis unavailable"}
+        ))
+        self.page.goto(self.url)
+        expect(self.page.locator("#connectionText")).to_have_text("Analysis unavailable")
+        self.upload()
+        expect(self.page.locator("#audioPreview")).to_be_visible()
+        expect(self.page.locator("#analyse")).to_be_disabled()
+        expect(self.page.locator("#actionHint")).to_contain_text("still record and preview")
+        self.assertFalse(self.page.evaluate("document.documentElement.scrollWidth > innerWidth"))
+
 
 if __name__ == "__main__":
     unittest.main()

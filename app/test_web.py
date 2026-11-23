@@ -6,6 +6,7 @@ import io
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -163,6 +164,45 @@ class WebTests(unittest.TestCase):
                 counter.release.set()
             self.assertEqual(pending.result(timeout=5).status_code, 202)
         self.assertEqual(client.get("/jobs/" + job_id).json()["status"], "done")
+
+    def test_page_is_available_while_models_are_loading(self) -> None:
+        entered = threading.Event()
+        release = threading.Event()
+
+        def load(settings: WebSettings) -> StubCounter:
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError("warmup test was not released")
+            return StubCounter()
+
+        with patch("app.main._load_models", side_effect=load):
+            with TestClient(create_app()) as client:
+                try:
+                    self.assertTrue(entered.wait(3))
+                    self.assertEqual(client.get("/").status_code, 200)
+                    response = client.get("/healthz")
+                    self.assertEqual(response.status_code, 503)
+                    self.assertEqual(response.json()["status"], "loading")
+                    self.assertEqual(client.post("/diarize").status_code, 503)
+                finally:
+                    release.set()
+                for _ in range(100):
+                    if client.get("/healthz").status_code == 200:
+                        break
+                    time.sleep(.01)
+                self.assertTrue(client.get("/healthz").json()["ok"])
+
+    def test_missing_models_do_not_prevent_the_website_from_opening(self) -> None:
+        with patch("app.main._load_models", side_effect=RuntimeError("missing model dependency")):
+            with self.assertLogs("app.main", level="ERROR"):
+                with TestClient(create_app()) as client:
+                    for _ in range(100):
+                        if client.get("/healthz").json()["status"] == "error":
+                            break
+                        time.sleep(.01)
+                    self.assertEqual(client.get("/").status_code, 200)
+                    self.assertEqual(client.get("/healthz").json()["status"], "error")
+                    self.assertEqual(client.post("/diarize").status_code, 503)
 
 
 if __name__ == "__main__":
