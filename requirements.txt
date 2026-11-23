@@ -43,6 +43,15 @@ pyannote.database==6.1.1
 PyYAML==6.0.3
 tqdm==4.70.0
 
+# Web app: live speaker-count service (app/). Starlette (not FastAPI) keeps pydantic
+# out of the closure; plain uvicorn needs only click+h11, already pinned above;
+# python-multipart backs the file upload. These three were NOT resolved on-GPU yet
+# (no network at author time) -- after `pip install -r requirements.txt`, run
+# `pip check` to confirm the closure is still unbroken (torch must stay 2.6.0+cu124).
+starlette==0.46.2
+uvicorn==0.34.0
+python-multipart==0.0.20
+
 # Meeting deliverable: plots + external-audio VAD (pyannote/segmentation-3.0).
 # pyannote.audio 4.x needs torch>=2.8, which would break the torch==2.6.0 closure above;
 # 3.3.2 supports torch>=2.0 and ships segmentation-3.0, so the stack stays put.
