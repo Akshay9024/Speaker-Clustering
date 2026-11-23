@@ -51,6 +51,8 @@ tqdm==4.70.0
 starlette==0.46.2
 uvicorn==0.34.0
 python-multipart==0.0.20
+# Portable decoder fallback for MP3/M4A/WebM and video audio tracks.
+imageio-ffmpeg==0.6.0
 
 # Meeting deliverable: plots + external-audio VAD (pyannote/segmentation-3.0).
 # pyannote.audio 4.x needs torch>=2.8, which would break the torch==2.6.0 closure above;

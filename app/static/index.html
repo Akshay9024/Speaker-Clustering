@@ -1,117 +1,153 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Speaker Counter</title>
-<style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    margin: 0; min-height: 100vh; display: grid; place-items: center;
-    background: #0f1420; color: #e7ecf3; padding: 24px;
-  }
-  .card {
-    width: 100%; max-width: 460px; background: #192234; border: 1px solid #2a3750;
-    border-radius: 16px; padding: 28px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  }
-  h1 { font-size: 1.25rem; margin: 0 0 4px; }
-  p.sub { margin: 0 0 20px; color: #9fb0c8; font-size: .9rem; }
-  .drop {
-    border: 1.5px dashed #3a4a68; border-radius: 12px; padding: 28px 16px;
-    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
-  }
-  .drop:hover, .drop.over { border-color: #5b8cff; background: #1d2840; }
-  .drop input { display: none; }
-  .fname { margin-top: 12px; font-size: .85rem; color: #9fb0c8; word-break: break-all; }
-  button {
-    width: 100%; margin-top: 18px; padding: 12px; font-size: 1rem; font-weight: 600;
-    border: 0; border-radius: 10px; background: #3b74ff; color: #fff; cursor: pointer;
-  }
-  button:disabled { opacity: .5; cursor: default; }
-  .result { margin-top: 22px; text-align: center; min-height: 72px; }
-  .count { font-size: 3rem; font-weight: 700; line-height: 1; }
-  .label { color: #9fb0c8; font-size: .85rem; margin-top: 6px; }
-  .meta { color: #6f819c; font-size: .75rem; margin-top: 8px; }
-  .err { color: #ff8a8a; font-size: .9rem; }
-  .spin { display: inline-block; width: 26px; height: 26px; border: 3px solid #35456580;
-          border-top-color: #5b8cff; border-radius: 50%; animation: s .8s linear infinite; }
-  @keyframes s { to { transform: rotate(360deg); } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b101b">
+  <meta name="description" content="Upload audio or record a conversation to estimate the number of distinct speakers.">
+  <title>Speaker Counter — Listen. Analyse. Understand.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%238b8aff'/%3E%3Cpath d='M8 13v6m5-11v16m6-19v22m5-14v6' stroke='%230b101b' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
-<div class="card">
-  <h1>How many speakers?</h1>
-  <p class="sub">Upload an audio file &mdash; the system estimates the number of distinct speakers.</p>
+  <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-wave" viewBox="0 0 24 24"><path d="M3 10v4m4-8v12m5-16v20m5-16v12m4-8v4"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></symbol>
+    <symbol id="icon-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/></symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Zm0 0v6h6M8 13v3m4-5v7m4-5v3"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  </svg>
 
-  <label class="drop" id="drop">
-    <input type="file" id="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" />
-    <div>Click to choose or drop an audio file</div>
-    <div class="fname" id="fname"></div>
-  </label>
+  <a class="skip-link" href="#workspace">Skip to audio workspace</a>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Speaker Counter home">
+        <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#icon-wave"/></svg></span>
+        <span>Speaker<span class="brand-light">Counter</span></span>
+      </a>
+      <div class="header-right">
+        <a class="help-link" href="#guide">How it works</a>
+        <span id="connection" class="connection" role="status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connectionText">Connecting</span>
+        </span>
+        <button id="reconnect" class="text-button" type="button" hidden>Retry connection</button>
+      </div>
+    </header>
 
-  <button id="go" disabled>Estimate speakers</button>
-  <div class="result" id="result"></div>
-</div>
+    <main id="workspace">
+      <section class="hero" aria-labelledby="pageTitle">
+        <div class="eyebrow"><span class="eyebrow-line"></span>A little clarity in every conversation</div>
+        <h1 id="pageTitle">One recording.<br><span>How many voices?</span></h1>
+        <p class="hero-description">Turn a conversation into a speaker count. Bring an audio file or record from your microphone. We’ll take it from there.</p>
+      </section>
 
-<script>
-  const fileEl = document.getElementById("file");
-  const drop = document.getElementById("drop");
-  const fname = document.getElementById("fname");
-  const go = document.getElementById("go");
-  const result = document.getElementById("result");
+      <div class="workspace-grid">
+        <section id="inputPanel" class="panel input-panel" aria-labelledby="audioTitle">
+          <div class="panel-heading">
+            <div><p class="section-label">YOUR AUDIO</p><h2 id="audioTitle">Start with a conversation</h2></div>
+            <span class="panel-icon"><svg class="icon" aria-hidden="true"><use href="#icon-wave"/></svg></span>
+          </div>
 
-  function setFile(f) {
-    if (!f) return;
-    fileEl._file = f;
-    fname.textContent = f.name;
-    go.disabled = false;
-    result.innerHTML = "";
-  }
-  fileEl.addEventListener("change", () => setFile(fileEl.files[0]));
-  ["dragover", "dragenter"].forEach(e => drop.addEventListener(e, ev => {
-    ev.preventDefault(); drop.classList.add("over");
-  }));
-  ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => {
-    ev.preventDefault(); drop.classList.remove("over");
-  }));
-  drop.addEventListener("drop", ev => setFile(ev.dataTransfer.files[0]));
+          <div class="source-tabs" role="tablist" aria-label="Audio source">
+            <button id="uploadTab" class="source-tab" type="button" role="tab" aria-selected="true" aria-controls="uploadPanel">
+              <svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg>Upload a file
+            </button>
+            <button id="recordTab" class="source-tab" type="button" role="tab" aria-selected="false" aria-controls="recordPanel" tabindex="-1">
+              <svg class="icon" aria-hidden="true"><use href="#icon-mic"/></svg>Record audio
+            </button>
+          </div>
 
-  async function poll(jobId) {
-    while (true) {
-      await new Promise(r => setTimeout(r, 1500));
-      const res = await fetch(`/jobs/${jobId}`);
-      const job = await res.json();
-      if (job.status === "done") return job.result;
-      if (job.status === "error") throw new Error(job.error || "inference failed");
-    }
-  }
+          <div id="uploadPanel" role="tabpanel" aria-labelledby="uploadTab">
+            <input id="fileInput" class="visually-hidden" type="file" accept="audio/*,video/mp4,video/webm,.wav,.mp3,.m4a,.flac,.ogg,.oga,.opus,.webm,.aac,.aiff,.aif,.amr,.mp4,.mov,.mkv" tabindex="-1">
+            <button id="dropZone" class="drop-zone" type="button">
+              <span class="upload-symbol"><svg class="icon" aria-hidden="true"><use href="#icon-upload"/></svg></span>
+              <span class="drop-title">Drop your audio here</span>
+              <span class="drop-description">or choose a recording from your device</span>
+              <span class="browse-label">Browse files</span>
+            </button>
+            <div class="file-support"><span>WAV · MP3 · M4A · FLAC · OGG · WebM &amp; more</span><span id="fileLimit">Checking limits…</span></div>
+          </div>
 
-  go.addEventListener("click", async () => {
-    const f = fileEl._file;
-    if (!f) return;
-    go.disabled = true;
-    result.innerHTML = '<div class="spin"></div><div class="label">analysing&hellip; (long files take a while)</div>';
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-      const res = await fetch("/diarize", { method: "POST", body: fd });
-      if (!res.ok) throw new Error((await res.json()).detail || "upload failed");
-      const { job_id } = await res.json();
-      const r = await poll(job_id);
-      const n = r.num_speakers;
-      result.innerHTML = n === 0
-        ? '<div class="count">0</div><div class="label">no speech detected</div>'
-        : `<div class="count">${n}</div>`
-          + `<div class="label">speaker${n === 1 ? "" : "s"} detected</div>`
-          + `<div class="meta">${r.num_segments} windows &middot; ${r.speech_sec.toFixed(1)}s speech &middot; ${r.device}</div>`;
-    } catch (e) {
-      result.innerHTML = `<div class="err">${e.message}</div>`;
-    } finally {
-      go.disabled = false;
-    }
-  });
-</script>
+          <div id="recordPanel" role="tabpanel" aria-labelledby="recordTab" hidden>
+            <div id="recorder" class="recorder">
+              <span id="recordingLabel" class="recording-label">YOUR MICROPHONE</span>
+              <div id="recordTime" class="record-time" aria-label="Recording duration">00:00</div>
+              <canvas id="levelMeter" class="level-meter" height="64" aria-hidden="true"></canvas>
+              <p id="micHelp" class="mic-help">A few seconds of clear conversation is a good place to start.</p>
+              <button id="recordButton" class="record-button" type="button">
+                <span id="recordIndicator" class="record-indicator" aria-hidden="true"></span><span id="recordButtonText">Start recording</span>
+              </button>
+              <button id="cancelRecording" class="text-button" type="button" hidden>Cancel</button>
+            </div>
+          </div>
+
+          <section id="preview" class="audio-preview" aria-label="Selected recording" hidden>
+            <div class="file-row">
+              <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-file"/></svg></span>
+              <div class="file-details"><p id="fileName" class="file-name"></p><p id="fileMeta" class="file-meta"></p></div>
+              <button id="removeFile" class="icon-button" type="button" aria-label="Remove selected audio"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+            </div>
+            <audio id="audioPreview" controls preload="metadata" aria-label="Preview your recording"></audio>
+            <p id="previewHint" class="preview-hint" hidden></p>
+          </section>
+
+          <div id="notice" class="notice" role="alert" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg>
+            <p id="noticeText"></p>
+            <button id="dismissNotice" class="icon-button" type="button" aria-label="Dismiss message"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+          </div>
+
+          <button id="analyse" class="primary-button" type="button" disabled>
+            <svg id="analyseIcon" class="icon" aria-hidden="true"><use href="#icon-spark"/></svg>
+            <span id="analyseSpinner" class="spinner" aria-hidden="true" hidden></span>
+            <span id="analyseText">Estimate speakers</span>
+          </button>
+          <p id="actionHint" class="action-hint">Choose a file or record some audio to begin.</p>
+        </section>
+
+        <section id="resultPanel" class="panel result-panel" aria-labelledby="resultTitle">
+          <div class="panel-heading">
+            <div><p class="section-label">THE BIG PICTURE</p><h2 id="resultTitle">Your speaker count</h2></div>
+            <span class="result-badge" id="resultBadge">Ready when you are</span>
+          </div>
+          <div class="result-display" role="status" aria-atomic="true" aria-live="polite">
+            <div id="countRing" class="count-ring"><output id="speakerCount" class="speaker-count" aria-label="Estimated number of speakers">—</output></div>
+            <h3 id="resultHeading">Every conversation starts somewhere.</h3>
+            <p id="resultDescription">Add your audio, then estimate the number of distinct speakers.</p>
+          </div>
+          <div id="processing" class="processing" hidden>
+            <div class="processing-heading"><span class="spinner" aria-hidden="true"></span><span id="processingText">Uploading your audio</span><span id="analysisTime" class="elapsed">00:00</span></div>
+            <p id="processingHint">Keep this page open while your recording is analysed.</p>
+          </div>
+          <dl id="metrics" class="metrics" hidden>
+            <div><dt>Audio length</dt><dd id="audioDuration">—</dd></div>
+            <div><dt>Speech detected</dt><dd id="speechDuration">—</dd></div>
+          </dl>
+          <button id="checkResult" class="secondary-button" type="button" hidden>Check analysis status</button>
+          <button id="startAgain" class="text-button start-again" type="button" hidden>Analyse another recording</button>
+          <div class="result-footnote"><svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg><p>Counts are estimates, not speaker identities. Clear, audible speech gives the most useful result.</p></div>
+        </section>
+      </div>
+
+      <details id="guide" class="guide">
+        <summary><span><svg class="icon" aria-hidden="true"><use href="#icon-info"/></svg>Good audio. A clearer picture.</span><svg class="icon chevron" aria-hidden="true"><use href="#icon-chevron"/></svg></summary>
+        <div class="guide-grid">
+          <div><h3>Bring any conversation</h3><p>Upload a voice note, interview or meeting recording. Video files with an audio track work too.</p></div>
+          <div><h3>Listen before you analyse</h3><p>Preview your clip and check that the voices are audible. Longer, clear turns help distinguish speakers.</p></div>
+          <div><h3>See the estimate</h3><p>Get a count of distinct speakers and the amount of speech found in your recording.</p></div>
+        </div>
+      </details>
+    </main>
+
+    <footer class="site-footer"><span>Speaker Counter</span><span>Made for understanding conversations.</span></footer>
+  </div>
+  <noscript><p class="noscript">Enable JavaScript to upload audio or record from your microphone.</p></noscript>
 </body>
 </html>
